@@ -3,7 +3,7 @@
 #define EMITTER_PIN 11
 #define TIMEOUT 2500
 #define BAUDRATE 115200
-#define DEBUG //DEBUG: No Calibration, Autosend Reading on One Line
+//#define DEBUG //DEBUG: No Calibration, Autosend Reading on One Line
               //Non-DEBUG: Calibrate, Wait for Connection Byte in Setup, Send Data upon Request
 unsigned int sensorReading[NUMBEROFSENSORS];
 QTRSensorsRC qtr((unsigned char[]){3, 4, 5, 6, 7, 8, 9, 10}, NUMBEROFSENSORS, TIMEOUT, EMITTER_PIN);
@@ -14,12 +14,14 @@ void setup()
   Serial.begin(BAUDRATE);
 
   #ifndef DEBUG
+  
+   while (!Serial.available())
+   {
+    delay(10);
+    Serial.write("0");
+   }
   for (int i = 0; i < 400; i++)
     qtr.calibrate();//reads all sensors 10 times at 2500 us per read (i.e. ~25 ms per call)
-
-   while (!Serial.available()){
-    Serial.write(0);
-   }
   #else
     Serial.print("DEBUG Mode: Skipping QTR Calibration.");
   #endif
