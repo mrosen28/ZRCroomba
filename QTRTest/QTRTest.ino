@@ -6,13 +6,18 @@ unsigned int sensorReading[8];/*number of sensors*/
 QTRSensorsRC qtr((unsigned char[]){3, 4, 5, 6, 7, 8, 9, 10}, 8/*number of sensors*/, TIMEOUT, EMITTER_PIN);
 void setup()
 {
-  Serial.begin(9600);
   pinMode(13, OUTPUT);
   digitalWrite(13, HIGH);
+  Serial.begin(9600);
+
   #ifdef DEBUG
   for (int i = 0; i < 400; i++)
     qtr.calibrate();//reads all sensors 10 times at 2500 us per read (i.e. ~25 ms per call)
   #endif
+
+  while (!Serial.available()){
+    Serial.write(0);
+  }
   digitalWrite(13,LOW);
 }
 void loop()
