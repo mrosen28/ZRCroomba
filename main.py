@@ -1,39 +1,51 @@
 import struct,serial,sys,glob
-
-taken_ports=set()
-def get_serial_connection(baudrate=115200):
-    #ports = set(glob.glob('/dev/tty[A-Za-z]*'))-taken_ports #RPi
-    ports = list(set(glob.glob('/dev/tty.*'))-taken_ports) #macOS
-    while True:
-        if ports:
-            print("Listing all ports below:")
-            for i,port in enumerate(ports):
-                print(str(i) + '    ' + port)
-            port = ports[int(raw_input('Enter USB Port Index: '))]
-            # try:
-            print("Connection Established! (At "+port+")")
-            taken_ports.add(port)
-            return serial.Serial(port, baudrate=baudrate, timeout=1)
-            # except:
-                # print("Connection Failed! Please try again...")
-                # continue
-        else:
-            print("No Ports Found! Please try again...")
-            continue
-
-test=get_serial_connection()
-#while True:print(test)
-test.readall()
 from time import sleep
-sleep(.1)
-if(test.read() == "0"):
-    print('Arduino Detected!')
-    arduino=test
-    roomba=get_serial_connection()
-else:
-    print("Roomba Detected!")
-    roomba = test
-    arduino = get_serial_connection();
+
+roomba = None
+arduino = None
+taken_ports=set()
+
+def get_serial_connections(baudrate=115200):
+    global taken_ports
+    global arduino
+    global roomba
+    #ports = set(glob.glob('/dev/tty[A-Za-z]*'))-taken_ports #RPi
+    while True:
+        ports = list(set(glob.glob('/dev/tty.*'))-taken_ports) #macOS
+        if (arduino == None or roomba == None):
+            if ports:
+                print("Listing all ports below:")
+                for i,port in enumerate(ports):
+                    print(str(i) + '    ' + port)
+                port = ports[int(raw_input('Enter USB Port Index: '))]
+                # try:
+                print("Connection Established! (At "+port+")")
+                taken_ports.add(port)
+                test =  serial.Serial(port, baudrate=baudrate, timeout=1)
+                test.readall()
+                sleep(.1)
+                if(test.read() == "0"):
+                    print('Arduino Detected!')
+                    arduino=test
+                    print('Arduino Connection Established!')
+                    continue
+                else:
+                    print("Roomba Detected!")
+                    roomba = test
+                    print('Roomba Connection Established!')
+                    continue
+
+                # except:
+                    # print("Connection Failed! Please try again...")
+                    # continue
+            else:
+                print("No Ports Found! Please try again...")
+                continue
+        else:
+            return
+
+get_serial_connections()
+#while True:print(test)
 
 
 def to_bytes(n, length, endianess='big'):
