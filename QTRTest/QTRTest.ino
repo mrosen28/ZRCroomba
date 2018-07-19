@@ -14,19 +14,18 @@ void setup()
   Serial.begin(BAUDRATE);
 
   #ifndef DEBUG
-  
+    for (int i = 0; i < 400; i++)
+      qtr.calibrate();//reads all sensors 10 times at 2500 us per read (i.e. ~25 ms per call)
+  #else
+    Serial.print("DEBUG Mode: Skipping QTR Calibration.");
+  #endif
+
    while (!Serial.available())
    {
     delay(10);
     Serial.write("0");
    }
-  for (int i = 0; i < 400; i++)
-    qtr.calibrate();//reads all sensors 10 times at 2500 us per read (i.e. ~25 ms per call)
-  #else
-    Serial.print("DEBUG Mode: Skipping QTR Calibration.");
-  #endif
-
-
+   
   digitalWrite(13,LOW);
 }
 void loop()
