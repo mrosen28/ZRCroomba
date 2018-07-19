@@ -45,6 +45,11 @@ def get_serial_connections(baudrate=115200):
 	arduino.readall()
 	roomba.readall()
 
+def sign(x):
+	if x>0:return 1
+	if x<0:return-1
+	return 0
+
 def byte(*n):
 	#Combines an indefinite number of integer arguments into a bytestring
 	#Example: byte(65,66,67)==bytes('ABC')  Note: ord('A')==65
@@ -65,34 +70,11 @@ def get_bumper():
 	roomba.write(byte(142,7)) #Request Packet 45 (Bumper Sensor Values)
 	return (get8Unsigned() & 0b000011)
 
-
-
-default_speed=100
-def set_motors(left,right,speed=None):
-	roomba.write(byte(128,132))
-	if speed is None:speed=default_speed
-	#Left and right should conventionally be between -1 and 1
-	assert -32768<=speed<=32767
-	def to_bytes(n, length, big_endian=True):
-		h = '%x' % n
-		s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
-		return s if big_endian else s[::-1]
-	def to_signed_short(n,number_of_bytes=2):
-		assert -32768<=n<=32767,'to_signed_short: error: '+str(n)+' is not a valid signed short'
-		return to_bytes(twos_complement(n,8*number_of_bytes),number_of_bytes)
-	def twos_complement(val, nbits):
-		"""Compute the 2's complement of int value val"""
-		if   val < 0:				 val += (1 << nbits)
-		elif val & (1 << (nbits - 1)):val -= (1 << nbits)#Compute negative value if sign bit is set.
-		return val
-	roomba.write(byte(146)+to_signed_short(int(left*speed))+to_signed_short(int(right*speed)))
-
-
 last_tilt=0#is remembered even when we're not on the line
 def get_tilt():
 	#If the robot is on the line, returns a float between -1 and 1.
-	#If the robot is NOT on line, returns a boolean value: True if there's ANY black on the sensor,
-	#													  and False if there isn't.
+	#If the robot is NOT on line, returns a boolean value: True if there's ANY
+	#black on the sensor, and False if there isn't.
 	s=arduino
 	def get():
 		s.write(b' ')
@@ -123,6 +105,28 @@ def get_tilt():
 	else:
 		return any(L)
 
+default_speed=100
+def set_motors(left,right,speed=None):
+	roomba.write(byte(128,132))
+	if speed is None:speed=default_speed
+	#Left and right should conventionally be between -1 and 1
+	assert -32768<=speed<=32767
+	def to_bytes(n, length, big_endian=True):
+		h = '%x' % n
+		s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
+		return s if big_endian else s[::-1]
+	def to_signed_short(n,number_of_bytes=2):
+		assert -32768<=n<=32767,'to_signed_short: error: '+str(n)+' is not a valid signed short'
+		return to_bytes(twos_complement(n,8*number_of_bytes),number_of_bytes)
+	def twos_complement(val, nbits):
+		"""Compute the 2's complement of int value val"""
+		if   val < 0:				 val += (1 << nbits)
+		elif val & (1 << (nbits - 1)):val -= (1 << nbits)#Compute negative value if sign bit is set.
+		return val
+	roomba.write(byte(146)+to_signed_short(int(left*speed))+to_signed_short(int(right*speed)))
+
+def halt_motors(): set_motors(0,0)
+
 # def get_encoders():
 # 	while True:
 # 		try:
@@ -150,14 +154,6 @@ def get_tilt():
 # 	roomba.write(byte(128,132))
 #	beep()
 
-def sign(x):
-	if x>0:return 1
-	if x<0:return-1
-	return 0
-
-def halt_motors():
-	set_motors(0,0)
-
 def move_timed_distance(left,right,time=None,speed=None):
 	if time is None:time=default_time
 	set_motors(left, right,speed)
@@ -167,14 +163,14 @@ def move_timed_distance(left,right,time=None,speed=None):
 default_offset=50#TODO: Calibrate this!
 default_time=.75
 def step_forward(tiltyness=.8,offset=None,speed=None):
-	pester_the_roomba()
+	#pester_the_roomba()
 	#TODO: Implement offset
 	while True:
 		tilt=get_tilt()
-		if tilt is True:break#Quick python tip: "1==True" is true, but "1 is True" is false. We're hopefully on an intersection
-		if tilt is False:tilt=last_tilt#This happens if the robot's line following algorithm was too sloppy to follow the line perfectly,
+		if tilt is True:break #Quick python tip: "1==True" is true, but "1 is True" is false. We're hopefully on an intersection
+		if tilt is False:tilt=last_tilt #This happens if the robot's line following algorithm was too sloppy to follow the line perfectly,
 									   #and the sensor is now on the white area. Remember what our tilt was before we left the line and use that...
-		assert isinstance(tilt,float)#get_tilt only returns floats or booleans
+		assert isinstance(tilt,float) #get_tilt only returns floats or booleans
 		tilt*=abs(tilt)
 		tilt*=tiltyness
 		print("Stepping Forward...")
