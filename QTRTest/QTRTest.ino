@@ -25,7 +25,7 @@ void setup()
     delay(10);
     Serial.write("0");
    }
-   
+
   digitalWrite(13,LOW);
 }
 void loop()

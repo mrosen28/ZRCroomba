@@ -1,49 +1,36 @@
 import struct,serial,sys,glob,readline,struct,traceback
 from time import sleep
+from serial.tools import list_ports as lp
 
 arduino=roomba=None
-taken_ports=set()
 def get_serial_connections(baudrate=115200):
-	global taken_ports,arduino,roomba
-	while arduino is None or roomba is None:
-		ports = list(x for x in (set(glob.glob('/dev/tty.*')+glob.glob('/dev/tty[A-Za-z]*'))-taken_ports) if ("USB" in x or "tty." in x and "Bluetooth" not in x)) #for both macOS AND raspi
-		assert ports,'No ports detected!'
-		print("Listing Remaining Ports:")
-		for i,port in enumerate(ports):
-			print(port)
-		while True:
-			try:port = ports[0];break
-			except Exception as e:print("Bad input! Please try again. Error: "+str(e))
-		print("Connection Available! (At "+port+")")
-		taken_ports.add(port)
-		test =  serial.Serial(port, baudrate=baudrate, timeout=1)
-		test.readall()
-		sleep(.2)
-		if test.read(1) == "0":
-			print('Arduino Detected!')
-			arduino=test
-			print('Connecting...')
-			while arduino.read()=='0':
-				arduino.write(b'15')#get the arduino to shut the f up (it doesn't matter what we send it)
-				sleep(.2)
-				arduino.readall()
-				if arduino.read()=='0':
-					print("Waiting for Calibration to Finish...")
-			print('Arduino Connection Established!')
-			continue
-		else:
-			print("Roomba Detected!")
-			roomba=test
-			print("Entering Passive/Safe Modes...")
-			for i in range(10):#Gotta ake hecka-gosh-darn sure this actually works...
-				roomba.write(byte(128,132))#Enter Start -> Full Mode.
-				sleep(.1)
-			print('Roomba Connection Established!')
+	global arduino,roomba
+	arduinoVID = 6790
+	roombaVID = 1027
+	device_list = lp.comports()
+	print("Getting Serial Connections...")
+	for device in device_list:
+		if(device.vid == roombaVID):
+			print("Roomba Detected @ " + str(device.device))
+			roomba = serial.Serial(device.device,baudrate,timeout=1)
+			print("Entering Start/Full Mode.")
+			roomba.write(byte(128,132))#Enter Start -> Full Mode.
+			sleep(.1)
 			beep()
-			continue
-	#Clear Incoming Serial Buffers
-	arduino.readall()
-	roomba.readall()
+		if(device.vid == arduinoVID):
+			print("Arduino Detected @ " + str(device.device))
+			arduino =  serial.Serial(device.device, baudrate=baudrate, timeout=1)
+			print("Beginning QTR Calibration.")
+			arduino.write("0")# Begin QTR Calibration
+			sleep(.5)
+			arduino.readall() #Clear Serial Buffer
+	if (roomba == None or arduino == None):
+		print("We Forgot Someone...")
+		quit()
+	else:
+		#Clear Incoming Serial Buffers
+		arduino.readall()
+		roomba.readall()
 
 def sign(x):
 	if x>0:return 1
