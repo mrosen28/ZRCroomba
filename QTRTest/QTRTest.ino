@@ -1,6 +1,6 @@
 #include <QTRSensors.h>
 #define NUMBEROFSENSORS 8
-#define EMITTER_PIN 11
+#define EMITTER_PIN 2
 #define TIMEOUT 2500
 #define BAUDRATE 115200
 //#define DEBUG //DEBUG: No Calibration, Autosend Reading on One Line
@@ -20,12 +20,7 @@ void setup()
     Serial.print("DEBUG Mode: Skipping QTR Calibration.");
   #endif
 
-   while (!Serial.available())
-   {
-    delay(10);
-    Serial.write("0");
-   }
-
+  while (!Serial.available());
   digitalWrite(13,LOW);
 }
 void loop()

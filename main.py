@@ -2,35 +2,38 @@ import struct,serial,sys,glob,readline,struct,traceback
 from time import sleep
 from serial.tools import list_ports as lp
 
-arduino=roomba=None
+arduino=roomba=arm=None
 def get_serial_connections(baudrate=115200):
-	global arduino,roomba
+	global arduino,roomba,arm
 	arduinoVID = 6790
-	roombaVID = 1027
+	roombaPID = 24597
+	armPID = 24577
 	device_list = lp.comports()
 	print("Getting Serial Connections...")
 	for device in device_list:
-		if(device.vid == roombaVID):
-			print("Roomba Detected @ " + str(device.device))
+		print(str(device.device) + " " + str(device.pid))
+		if(device.pid == roombaPID):
+			print("Roomba Detected @ " + str(device.device) + " (Entering Start/Full Mode.)")
 			roomba = serial.Serial(device.device,baudrate,timeout=1)
-			print("Entering Start/Full Mode.")
 			roomba.write(byte(128,132))#Enter Start -> Full Mode.
-			sleep(.1)
 			beep()
+		if(device.pid == armPID):
+			print("Found Arm!")
+			arm = serial.Serial(device.device,9600,timeout=1)
+			#Arm Command Format: '##\r'
+			arm.write('aa\r')
 		if(device.vid == arduinoVID):
-			print("Arduino Detected @ " + str(device.device))
+			print("Arduino Detected @ " + str(device.device) + " (Beginning QTR Calibration.)")
 			arduino =  serial.Serial(device.device, baudrate=baudrate, timeout=1)
-			print("Beginning QTR Calibration.")
 			arduino.write("0")# Begin QTR Calibration
-			sleep(.5)
-			arduino.readall() #Clear Serial Buffer
-	if (roomba == None or arduino == None):
+	if (roomba == None or arduino == None or arm == None):
 		print("We Forgot Someone...")
-		quit()
+		#quit()
 	else:
 		#Clear Incoming Serial Buffers
 		arduino.readall()
 		roomba.readall()
+		print("All Devices Successfully Connected!")
 
 def sign(x):
 	if x>0:return 1
@@ -150,7 +153,6 @@ def move_timed_distance(left,right,time=None,speed=None):
 default_offset=50#TODO: Calibrate this!
 default_time=.75
 def step_forward(tiltyness=.8,offset=None,speed=None):
-	#pester_the_roomba()
 	#TODO: Implement offset
 	while True:
 		tilt=get_tilt()
@@ -162,7 +164,6 @@ def step_forward(tiltyness=.8,offset=None,speed=None):
 		tilt*=tiltyness
 		print("Stepping Forward...")
 		set_motors(1+tilt,1-tilt,speed)
-	# move_encoder_distance(offset,offset,speed)
 
 	move_timed_distance(left=1, right=1, time=None)
 
