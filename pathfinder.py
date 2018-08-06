@@ -43,8 +43,8 @@ def putOnShelf():
 
 	for i in range(3):
 		if bins[i] == item:
-			# serially pick up item from bin[i]
-			# serial put item on shelf
+			cup_up(i)# serially pick up item from bin[i]
+			shelf_down()# serial put item on shelf
 			itemPositions[getCurrShelf()][getCurrShelfPos()] = item
 			bins[i] = False
 
@@ -143,7 +143,7 @@ def goUpToShelfAndBack():
 	image = approach("p") #Approach Shelf and Find Barcode
 	decipherBarcode(image)
 	rotateRoombaDegrees(180) #turn around
-	# serial move, go back until we are back on the intersection
+	step_forward()# serial move, go back until we are back on the intersection
 	# faceDegree(shelfDirectionOfTravel) MOVED SOMEWHERE ELSE
 
 # go to the end of the destination shelf that is closest to us
@@ -304,6 +304,7 @@ def depositItem(shelf, position):
 	moveRoombaToItem(x, y)
 	faceShelf()
 	#move_until_bumpers()
+	move_until_bumpers()
 	putOnShelf()
 	rotateRoombaDegrees(180)
 	# get back on intersection line
