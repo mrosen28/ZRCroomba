@@ -1,9 +1,10 @@
 import math
+from main import *
+from hwi import *
 from pathfinding.core.grid import Grid
 from pathfinding.finder.breadth_first import BreadthFirstFinder
 from time import sleep
 delay = 0
-
 layout = [
   [1, 1, 1, 1, 1, 0, 0, 0],
   [0, 0, 0, 1, 1, 1, 1, 1],
@@ -30,55 +31,6 @@ def getCurrShelfPos():
 	global currX
 	return currX % 5
 
-
-# ISSUE: remove whitespaces???
-# Creates an array of the tasklist data out of the string read from the barcode
-def parseTaskData(data):
-	data = data.split('\n')
-	taskList = []
-	for row in data:
-		row = row.split(',')
-		taskList.append(row)
-
-	#convert into a 3 by 3 matrix
-	taskMatrix = [ [0, 0, 0] for i in range(3)]
-	for task in taskList:
-		shelfName = 0
-		if task[0] == 'S1':
-			shelfName = 0
-		elif task[0] == 'A1':
-			shelfName = 1
-		else:
-			shelfName = 2
-		position = int(task[1]) - 1
-		taskMatrix[shelfName][position] = task[2].strip()
-		#print(int(task[1]))
-	return taskMatrix
-
-# See which of our bins has space to put stuff in
-def findEmptyBin():
-	global bins
-	if bins[0] == False:
-		return 0
-	elif bins[1] == False:
-		return 1
-	elif bins[2] == False:
-		return 2
-	else: return -1
-
-# Check which bin is empty
-# Update record keeping of bins
-# Actually mechanically put item in bin
-# remove item from shelf record keeping
-def putInBin(barcodeData):
-	global bins
-	global itemPositions
-	emptyBin = findEmptyBin()
-	bins[emptyBin] = barcodeData
-	# Serial commands to pick up and put in bin go here
-	itemPositions[getCurrShelf()][getCurrShelfPos()] = 0
-
-
 def inCorrectSpot():
 	return itemPositions[getCurrShelf()][getCurrShelfPos()] == tasks[getCurrShelf()][getCurrShelfPos()]
 
@@ -95,53 +47,6 @@ def putOnShelf():
 			# serial put item on shelf
 			itemPositions[getCurrShelf()][getCurrShelfPos()] = item
 			bins[i] = False
-
-# can scan both UPCA barcodes on the items, or QR codes on the task list
-# adds barcodes after reading to their appropriate record-keeping spots (tasks or itemPositions)
-def decipherBarcode(image): #, symbology):
-	from pyzbar.pyzbar import decode
-	from PIL import Image
-	from pyzbar.pyzbar import ZBarSymbol
-	barcodes = decode(Image.open(image)) #, symbols=[ZBarSymbol.QRCODE]) #optional
-	#decode(image, symbols=[symbology]) # optional, for zbar symbol . data returns the string of info
-	symbology = None
-
-	if barcodes:
-		for barcode in barcodes:
-			barcodeData = barcode.data.decode("utf-8")[1:] 		#returns the ID in this case, ID is a string
-			#print(isinstance(barcodeData, str))
-			symbology = barcode.type
-			print("[INFO] Found {} barcode: {}".format(symbology, barcodeData))
-
-		global tasks
-		global itemPositions
-		if symbology == 'QRCODE':
-			tasks = parseTaskData(barcodeData)
-			#print(tasks)
-		else:									#if symbology == UPCA: (we have an item)
-			print("about to update itemPositions")
-			itemPositions[getCurrShelf()][getCurrShelfPos()] = barcodeData
-			if not inCorrectSpot():
-				putInBin(barcodeData)
-		if symbology != 'QRCODE': #if we're not at task list and we're actually at a shelf
-			putOnShelf() # check if we need to put something from our bins in the spot (either we took something off)
-	else:
-		putOnShelf()
-
-def readTaskList():
-	goToPosition(7, 4)
-	rotateRoombaDegrees(270) # face east. since we start at bottom facing north, we only need to turn 90 degrees
-	# move arm to get into position to take picture
-	# actually make camera scan/take picture on raspberry pi
-	# convert picture to a numpy array
-	# send this array here and convert back to an image.
-	# store this image in the correct location
-	image = takePicUntilBarcode()
-	#symbology = ZBarSymbol.QRCODE
-	decipherBarcode(image) #, symbology) # scan and make the data
-	# parseTaskData(data)
-def mechanicalMoveForwardOne(): # Assumes direction/orientation is already correct
-	step_forward()	# move forward one serially
 
 # Fill in with Mechanical/ serial aspect of rotation, also updates currRotation in record-keeping
 # same as your rotate(degrees, speed = None) except added last 2 lines
@@ -203,7 +108,7 @@ def moveOneSpot(x, y): 	#destination coordinates
  		# MOVEMENT STUFF
 		currX = x 			# update where we are in record-keeping
 		currY = y
-		mechanicalMoveForwardOne()
+		step_forward()()
 
 def goToPosition(endX, endY): # feed it a destination coordinate
 	global currX, currY
@@ -235,8 +140,7 @@ def findPath(sx, sy, ex, ey, pathOrlength):
 # Serial necessary here
 def goUpToShelfAndBack():
 	faceShelf()
-	move_until_bumpers()# Serial move until bumpers are hit. DO NOT CALL MOVEONESPOT, it will update the global variables of position incorrectly
-	image = takePicUntilBarcode() # take Picture of barcodes and store image somewhere
+	image = approach("p") #Approach Shelf and Find Barcode
 	decipherBarcode(image)
 	rotateRoombaDegrees(180) #turn around
 	# serial move, go back until we are back on the intersection
@@ -299,10 +203,7 @@ def moveOneForward():
 	else: #orientation == 270
 		currY += 1
 	printPos()
-	mechanicalMoveForwardOne()
-
-def allBinsEmpty():
-	return ((bins[0] == False) and (bins[1] == False) and (bins[2] == False))
+	step_forward()()
 
 # reads all 3 barcodes/positions along a shelf
 # maintains direction of travel, except after the last barcode / image
@@ -416,8 +317,18 @@ def getShelves():
 			shelves[shelf] += 1
 	return shelves
 
+def readTaskList():
+	goToPosition(7, 4)
+	rotateRoombaDegrees(270) # face east. since we start at bottom facing north, we only need to turn 90 degrees
+	#Move arm to get into position to take picture?
+	image = takePicUntilBarcode()
+	taskListRead = decipherBarcode(image)
+	if (taskListRead == 1):
+		print("Task List Decoded Successfully.")
+	else:
+		print("Error Reading Task List!")
+
 def start():
-	global bins
 	# global shelfDirectionOfTravel
 	# shelfDirectionOfTravel = 180
 	readTaskList()
@@ -482,10 +393,7 @@ def start():
 # Shelf one: Spots 0, 1, 2
 # Shelf two: Spots 0, 1, 2
 itemPositions = [ [0, 0, 0] for i in range(3)]
-bins = [False for i in range(3)] #contains ID of item in Bin 0, 1, 2
-tasks = 0 #this will be the global task list
 shelfDirectionOfTravel = 0
-
 
 currX = 7
 currY = 7

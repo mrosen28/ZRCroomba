@@ -1,0 +1,40 @@
+f forward (move until intersection or bumper)
+r right (rotate -90)
+l left (rotate 90)
+b backwards (rotate 180)
+X put into bin X (ditto for Y and Z)
+x pick-up from bin x (ditto for y and z)
+S put onto shelf
+s pick up from shelf
+
+
+
+ffr
+takes
+
+There are 6 shelf spots, 0 1 2 3 4 5
+There are 6 boxes that belong on these shelves, a b c d e f
+There are 3 bins, 0 1 2
+Bins is a list, ['a','f',None] etc
+Scan the wall, then make spots = 'abfdec' (or something like that)
+Todo is a list that starts as {}, and as we see the wrong 
+Go to spot 0, then call "adjustShelf" which does this:
+	scan=scanShelf()	‹returns a letter if box on the shelf, else None›
+	if scan==spots[0]:return	‹nothing wrong here, move on›
+	elif scan is None:
+	else scan in bins:	‹shelf is wrong: either empty or has wrong bin›
+
+
+
+IDs is a list with 6 numbers, 
+
+
+
+
+
+
+
+go to stockroom
+scan wall to update map
+pick up all cubes and put into bins, updating which box is in which bin
+

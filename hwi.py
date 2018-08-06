@@ -2,54 +2,36 @@ import struct,serial,sys,glob,readline,struct,traceback,pyzbar
 from time import sleep
 from picamera.array import PiRGBArray
 from picamera import PiCamera
+from pyzbar.pyzbar import decode
+from pyzbar.pyzbar import ZBarSymbol
+from PIL import Image
 from serial.tools import list_ports as lp
+import time
 
-piCam=arduino=roomba=arm=None
+piCam=arduino=roomba=arm=tasks=None
+bins = [False for i in range(3)] #contains ID of item in Bin 0, 1, 2
 
-def cameraInterface():
-	global piCam
-	piCam = PiCamera()
-	time.sleep(0.1)
-	if piCam not None:
-		camera.resolution = (1280, 720)
-		camera.framerate = 32
-		print ("Camera Connected.")
-	else:
-		print("Error Connecting Camera!")
+try:piCam = PiCamera()
+except Exception as E:print("Failed to initialize PiCamera: "+str(E))
 
-def takePicUntilBarcode:
-	UPCs = []
-	rawCapture = PiRGBArray(piCam, size=(1280, 720))
-	for frame in piCam.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-		image = frame.array
-		#Is there a Barcode Present?
-		barcodes = decode(Image.open(image))
-		if barcodes:
-			return image
-			# 	for barcode in barcodes:
-			# 		barcodeData = barcode.data.decode("utf-8")[1:]
-			# 		symbol = barcode.type
-			# 		if symbol == 'QRCODE':
-			# 			global tasks
-			# 			print("Task List Found!")
-			# 			tasks = parseTaskData(barcodeData)
-			#
-			# 		elif symbol == 'UPCA':
-			# 			print("Item Barcode Found.")
-			# 			UPCs.append(image)
-			# 	#Only UPCs Detected
-			# 	return UPCs
-
-		else:
-			continue
-
-def get_serial_connections():
-	global arduino,roomba,arm
+def getConnected():
+	global piCam,arduino,roomba,arm
 	baudrate=115200
 	armBaudRate = 9600
 	arduinoVID = 6790
 	roombaPID = 24597
 	armPID = 24577
+
+	time.sleep(0.1)
+	if piCam is not None:
+		cameraConnection = True
+		print ("Camera Connected.")
+		# piCam.resolution = (1280, 720)
+		# piCam.framerate = 32
+	else:
+		cameraConnection = False
+		print("Error Connecting Camera!")
+
 	device_list = lp.comports()
 	print("Getting Serial Connections...")
 	for device in device_list:
@@ -63,12 +45,12 @@ def get_serial_connections():
 			print("Found Arm!")
 			arm = serial.Serial(device.device,armBaudRate,timeout=1)
 			#Arm Command Format: '##\r'
-			arm.write('aa\r')
+			arm.write(b'aa\r')
 		if(device.vid == arduinoVID):
 			print("Arduino Detected @ " + str(device.device) + " (Beginning QTR Calibration)")
 			arduino = serial.Serial(device.device, baudrate=baudrate, timeout=1)
-			arduino.write("0")# Begin QTR Calibration
-	if (roomba == None or arduino == None or arm == None):
+			arduino.write(b"0")# Begin QTR Calibration
+	if (roomba == None or arduino == None or arm == None or cameraConnection == False):
 		print("We Forgot Someone...")
 		#quit()
 	else:
@@ -77,6 +59,108 @@ def get_serial_connections():
 		roomba.readall()
 		arm.readall()
 		print("All Devices Successfully Connected!")
+def takePic():
+	rawCapture = PiRGBArray(piCam)
+	piCam.capture(rawCapture,format='bgr')
+	return rawCapture.array
+
+
+def takePicUntilBarcode(timeout=10,show_image=False,):
+	from time import time
+	start=time()
+	barcodes=[]
+	while time()-start<timeout and all(x.type=='CODE39' for x in barcodes):
+		#Is there a Barcode Present?
+		barcode=decode(takePic())
+		barcodes+=barcode
+		print("Tadaa! Found: "+repr(barcode))
+		try:
+			beep()
+			if show_image():
+				cv2.imshow("Image", image)
+				cv2.waitKey(10)
+		except:pass
+	box=location=None
+	for x in barcodes:
+		if x.type=='CODE39':
+			location=x.data
+		else:
+			box=x.data
+	return box,location
+
+# Creates an array of the tasklist data out of the string read from the barcode
+def parseTaskData(data):
+	data = data.split('\n')
+	taskList = []
+	for row in data:
+		row = row.split(',')
+		taskList.append(row)
+	#convert into a 3 by 3 matrix
+	taskMatrix = [ [0, 0, 0] for i in range(3)]
+	for task in taskList:
+		shelfName = 0
+		if task[0] == 'S1':
+			shelfName = 0
+		elif task[0] == 'A1':
+			shelfName = 1
+		else:
+			shelfName = 2
+		position = int(task[1]) - 1
+		taskMatrix[shelfName][position] = task[2].strip()
+		#print(int(task[1]))
+	return taskMatrix
+
+# See which of our bins has space to put stuff in
+def findEmptyBin():
+	global bins
+	if bins[0] == False:
+		return 0
+	elif bins[1] == False:
+		return 1
+	elif bins[2] == False:
+		return 2
+	else: return -1
+
+def allBinsEmpty(): return ((bins[0] == False) and (bins[1] == False) and (bins[2] == False))
+
+# Check which bin is empty
+# Update record keeping of bins
+# Actually mechanically put item in bin
+# remove item from shelf record keeping
+def putInBin(barcodeData):
+	global bins
+	global itemPositions
+	emptyBin = findEmptyBin()
+	if emptyBin == 0:pass
+		#PLACE IN BIN ONE
+	elif emptyBin == 1:pass
+		#PLACE IN BIN TWO
+	elif emptyBin == 2:pass
+		#PLACE IN BIN THREE
+	else:
+		#WERE OUT OF BINS?
+		return -1
+	bins[emptyBin] = barcodeData
+	#itemPositions[getCurrShelf()][getCurrShelfPos()] = 0
+
+def decipherBarcode(image): #, symbology):
+	barcodes = decode(Image.open(image)) #, symbols=[ZBarSymbol.QRCODE]) #optional
+	if barcodes:
+		for barcode in barcodes:
+			barcodeData = barcode.data.decode("utf-8")[1:] 		#returns the ID in this case, ID is a string
+			symbol = barcode.type
+			print("[INFO] Found {} barcode: {}".format(symbol, barcodeData))
+		if symbology == 'QRCODE':
+			global tasks
+			tasks = parseTaskData(barcodeData)
+			return 1
+		else: #if symbology == UPCA: (we have an item)
+			global itemPositions
+			print("about to update itemPositions")
+			itemPositions[getCurrShelf()][getCurrShelfPos()] = barcodeData
+			if not inCorrectSpot():
+				putInBin(barcodeData)
+			putOnShelf() # check if we need to put something from our bins in the spot (either we took something off)
 
 def sign(x):
 	if x>0:return 1
@@ -86,7 +170,8 @@ def sign(x):
 def byte(*n):
 	#Combines an indefinite number of integer arguments into a bytestring
 	#Example: byte(65,66,67)==bytes('ABC')  Note: ord('A')==65
-	return bytes(''.join(chr(x)for x in n))
+
+	return bytes(bytes('').join(chr(x)for x in n))
 
 def get_decoded_bytes(number_of_bytes,format):#n-byte value decoded using a format string. Whether it blocks ...
 					 return struct.unpack(format,roomba.read(number_of_bytes))[0]# ... is based on how the connection was set up.
@@ -166,29 +251,6 @@ def set_motors(left,right,speed=None):
 
 def halt_motors(): set_motors(0,0)
 
-# def get_encoders():
-# 	while True:
-# 		try:
-# 			global last_encoders
-# 			#TODO: Keep track of when the encoder overflows/underflows; this is very important
-# 			roomba.read_all()
-# 			roomba.write(byte(142,2,43,44)) #Request Packet 42 & 43 (Left / Right Encoder Counts)
-# 			return get8Unsigned(),get8Unsigned()#Left,Right
-# 		except:
-# 			continue
-# def move_encoder_distance(left,right,speed=None):
-# 	#left and right are encoder difference values
-# 	original_left,original_right=get_encoders()
-# 	while True:
-# 		current_left,current_right=get_encoders()
-# 		delta_left =current_left -original_left
-# 		delta_right=current_right-original_right
-# 		motor_right=0 if abs(delta_right)>abs(right) else sign(right)
-# 		motor_left =0 if abs(delta_left )>abs(left ) else sign(left )
-# 		if motor_left or motor_right:set_motors(motor_left,motor_right,speed)
-# 		else:break
-# 	halt_motors()
-
 def move_timed_distance(left,right,time=None,speed=None):
 	if time is None:time=default_time
 	set_motors(left, right,speed)
@@ -209,8 +271,27 @@ def step_forward(tiltyness=.8,offset=None,speed=None):
 		tilt*=tiltyness
 		print("Stepping Forward...")
 		set_motors(1+tilt,1-tilt,speed)
-
 	move_timed_distance(left=1, right=1, time=None)
+
+def approach(atWallOptions):
+	while not get_bumpers():
+		tilt=get_tilt()
+		tilt*=abs(tilt)
+		tilt*=tiltyness
+		set_motors(1+tilt,1-tilt,speed)
+	for x in atWallOptions:
+		if x == "p": #Picture
+			image = takePicUntilBarcode()
+			return image
+		elif x == "s":pass #Store on Shelf
+			###arm.write("aa/r")#Grab Item Off Shelf
+		elif x == "S":pass #Retrieve from Shelf
+		elif x == "x":pass #Store in Bin One
+		elif x == "X":pass #Retrieve from Bin One
+		elif x == "y":pass #Store in Bin Two
+		elif x == "Y":pass #Retrieve from Bin Three
+		elif x == "z":pass #Store in Bin Three
+		elif x == "Z":pass #Retrieve from Bin Three
 
 def rotate(degrees,speed=None):
 	#Unlike sine and cosine on the unit circle etc, degrees here increase clockwise. So, for example, 90 degrees is a right turn.
@@ -240,6 +321,71 @@ def rotate(degrees,speed=None):
 			break
 	halt_motors()
 
+def arm_write(x):
+	arm.write(bytes(x+'\r'))
+def cup_up(i=0):
+	arm_write('a'+chr(ord('b')+i))
+def cup_down(i=0):
+	arm_write('a'+chr(ord('f')+i))
+def shelf_up():
+	arm_write('ae')
+def shelf_down():
+	arm_write('ai')
+def grip_close():
+	arm_write('s5000\r')
+def grip_open():
+	arm_write('s5512\r')
+
+#Ability for manual arm control:
+#b is base
+#l is lower arm
+#u is upper arm
+#w is wrist
+#g is gripper
+arm_pose={'b':.5,'l':-1,'u':1,'w':1,'g':1}
+def pose(speed=.1,**joint_values):
+	def set_joint(j,x):
+		print("SetJoin",j,x)
+		#j is joint number, x is value between 0 and 1
+		if not 0<=x<=1:
+			print("WARNING: Set joint problem: x not between 0 and 1: j="+str(j)+' and x='+str(x))
+		x=str(max(0,min(int(x*1024),999)))
+		msg='s'+str(j)+'0'*(3-len(x))+x
+		assert len(msg)==5,'BAD custom arm code: '+msg 
+		arm_write(msg)	
+	for joint in joint_values:
+		dict(g=lambda x:set_joint(1,x/2),
+			 b=lambda x:set_joint(2,.5+.3*x),#clockwise from above: 1 is 90, -1 is -90
+			 u=lambda x:set_joint(3,.5+.3*x),#Larger angles curl the arm into itself...
+			 l=lambda x:set_joint(4,.5+.3*x),
+			 w=lambda x:set_joint(5,.5-.3*x))[joint](joint_values[joint])
+	print(kw)
+	arm_pose.update(kw)
+{'b':.5,'l':-1,'u':1,'w':1,'g':1}
+set_pose()
+
+
+# def sequencedMovement(sequence):
+# 	for x in sequence:dict(
+# 		r=lambda:rotate(-90),#Face Right
+# 		l=lambda:rotate(90), #Face Left
+# 		t=lambda:rotate(180),#Turn Around
+# 		f=lambda:step_forward(),#Move Forward
+# 		s=lambda:arm.write('aa\r'),#Store on Shelf
+# 		x=lambda:arm.write('aa\r'),#Store in Bin One
+# 		y=lambda:arm.write('aa\r'),#Store in Bin Two
+# 		z=lambda:arm.write('aa\r'),#Store in Bin Three
+# 		S=lambda:arm.write('aa\r'),#Retrieve from Shelf
+# 		X=lambda:arm.write('aa\r'),#Retrieve from Bin One
+# 		Y=lambda:arm.write('aa\r'),#Retrieve from Bin Two
+# 		Z=lambda:arm.write('aa\r'),#Retrieve from Bin Three
+# 		#picture?
+
 #basic setup
-get_serial_connections()
-cameraInterface()
+getConnected()
+pic=takePic
+bar=takePicUntilBarcode
+f=step_forward
+r=lambda:rotate(90)
+l=lambda:rotate(-90)
+
