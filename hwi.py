@@ -251,17 +251,20 @@ def set_motors(left,right,speed=None):
 
 def halt_motors(): set_motors(0,0)
 
-def move_timed_distance(left,right,time=None,speed=None):
-	if time is None:time=default_time
+def move_timed_distance(left,right,duration=None,speed=None):
+	if duration is None:duration=default_time
 	set_motors(left, right,speed)
-	sleep(time)
+	import time
+	start=time.time()
+	while time.time()-start<duration and not get_bumpers():
+		pass
 	halt_motors()
 
 default_offset=50#TODO: Calibrate this!
 default_time=.75
 def step_forward(tiltyness=.8,offset=None,speed=None):
 	#TODO: Implement offset
-	while True:
+	while not get_bumpers():
 		tilt=get_tilt()
 		if tilt is True:break #Quick python tip: "1==True" is true, but "1 is True" is false. We're hopefully on an intersection
 		if tilt is False:tilt=last_tilt #This happens if the robot's line following algorithm was too sloppy to follow the line perfectly,
@@ -272,6 +275,7 @@ def step_forward(tiltyness=.8,offset=None,speed=None):
 		print("Stepping Forward...")
 		set_motors(1+tilt,1-tilt,speed)
 	move_timed_distance(left=1, right=1, time=None)
+	correctTilt()#make tilt 0
 
 def approach(atWallOptions):
 	while not get_bumpers():
@@ -293,6 +297,17 @@ def approach(atWallOptions):
 		elif x == "z":pass #Store in Bin Three
 		elif x == "Z":pass #Retrieve from Bin Three
 
+def correctTilt():
+	tilt=get_tilt()
+	while tilt not in (True,False):
+		tilt=get_tilt()
+		s=.5
+		if tilt < 0:
+			set_motors(-s,s,speed)
+		elif tilt>0:
+			set_motors(s,-s,speed)
+		else:
+			break
 def rotate(degrees,speed=None):
 	#Unlike sine and cosine on the unit circle etc, degrees here increase clockwise. So, for example, 90 degrees is a right turn.
 	def rot(direction,speed=None):
@@ -309,16 +324,7 @@ def rotate(degrees,speed=None):
 	elif   degrees is   90:rot( 1,speed)
 	elif   degrees is  180:rot( 1,speed);rot(1,speed)
 	elif   degrees is  270:rotate(90,-default_speed)
-	tilt=get_tilt()
-	while tilt not in (True,False):
-		tilt=get_tilt()
-		s=.5
-		if tilt < 0:
-			set_motors(-s,s,speed)
-		elif tilt>0:
-			set_motors(s,-s,speed)
-		else:
-			break
+	correctTilt()
 	halt_motors()
 
 def arm_write(x):
@@ -362,7 +368,7 @@ def pose(speed=.1,**joint_values):
 	print(kw)
 	arm_pose.update(kw)
 {'b':.5,'l':-1,'u':1,'w':1,'g':1}
-set_pose()
+# set_pose()
 
 
 # def sequencedMovement(sequence):
@@ -388,4 +394,15 @@ bar=takePicUntilBarcode
 f=step_forward
 r=lambda:rotate(90)
 l=lambda:rotate(-90)
+b=lambda:rotate(180)
+S=shelf_up
+s=shelf_down
+X=lambda:cup_up(0)
+Y=lambda:cup_up(1)
+Z=lambda:cup_up(2)
+x=lambda:cup_down(0)
+y=lambda:cup_down(1)
+z=lambda:cup_down(2)
+
+# for c in 'ffrrllffrrll':globals()[c]()
 
